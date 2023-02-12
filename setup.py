@@ -2,13 +2,14 @@ from distutils.core import setup
 setup(
   name = 'splashlab',         # How you named your package folder (MyLib)
   packages = ['splashlab'],   # Chose the same as "name"
-  version = 'v0.0.3',      # Start with a small number and increase it with every change you make
+    py_modules = ['splashlab.dimensional_analysis'],
+  version = 'v0.0.4',      # Start with a small number and increase it with every change you make
   license='MIT',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'A package for fluid mechanic experimentalists',   # Give a short description about your library
   author = 'Spencer Truman',                   # Type in your name
   author_email = 'trumans24@gmail.com',      # Type in your E-Mail
   url = 'https://github.com/FluidsLab/SplashLab',   # Provide either the link to your github or to your website
-  download_url = 'https://github.com/FluidsLab/SplashLab/archive/refs/tags/v0.0.3.tar.gz',    # I explain this later on
+  download_url = 'https://github.com/FluidsLab/SplashLab/archive/refs/tags/v0.0.4.tar.gz',    # I explain this later on
   keywords = ['Fluid Dynamics', 'Experiment'],   # Keywords that define your package best
   install_requires=[            # I get to this in a second
           'numpy',
