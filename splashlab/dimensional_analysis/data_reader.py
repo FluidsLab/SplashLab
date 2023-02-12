@@ -1,9 +1,9 @@
 
 import numpy as np
 import pandas as pd
-from dimensional_analysis.unit import unit_parser
-from dimensional_analysis.parameter import Parameter
-from dimensional_analysis.group_of_parameter import GroupOfParameters
+from splashlab.dimensional_analysis.unit import unit_parser
+from splashlab.dimensional_analysis.parameter import Parameter
+from splashlab.dimensional_analysis.group_of_parameter import GroupOfParameters
 
 
 class Data:

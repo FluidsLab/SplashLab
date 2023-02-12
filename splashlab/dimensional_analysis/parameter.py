@@ -2,7 +2,7 @@
 import numpy as np
 
 from dataclasses import dataclass, field
-from dimensional_analysis.unit import Unit
+from splashlab.dimensional_analysis.unit import Unit
 
 
 @dataclass(frozen=True)

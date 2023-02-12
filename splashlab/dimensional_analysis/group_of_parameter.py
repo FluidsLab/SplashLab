@@ -1,7 +1,7 @@
 
 import sympy as sp
 
-from dimensional_analysis.parameter import Parameter
+from splashlab.dimensional_analysis.parameter import Parameter
 
 
 class GroupOfParameters:

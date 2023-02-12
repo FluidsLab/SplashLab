@@ -2,7 +2,7 @@
 import warnings
 
 from util import Util
-from dimensional_analysis.convert import Convert
+from splashlab.dimensional_analysis.convert import Convert
 
 
 class Unit:
