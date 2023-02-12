@@ -2,7 +2,7 @@
 import warnings
 
 from util import Util
-from convert import Convert
+from dimensional_analysis.convert import Convert
 
 
 class Unit:

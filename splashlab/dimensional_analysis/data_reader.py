@@ -1,9 +1,9 @@
 
 import numpy as np
 import pandas as pd
-from unit import unit_parser
-from parameter import Parameter
-from group_of_parameter import GroupOfParameters
+from dimensional_analysis.unit import unit_parser
+from dimensional_analysis.parameter import Parameter
+from dimensional_analysis.group_of_parameter import GroupOfParameters
 
 
 class Data:

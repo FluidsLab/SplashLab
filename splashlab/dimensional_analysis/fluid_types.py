@@ -3,7 +3,7 @@ import numpy as np
 
 from unit import Units
 from parameter import Parameter
-from group_of_parameter import GroupOfParameters
+from dimensional_analysis.group_of_parameter import GroupOfParameters
 
 
 english_to_greek = {

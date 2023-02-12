@@ -1,7 +1,7 @@
 
 import sympy as sp
 
-from parameter import Parameter
+from dimensional_analysis.parameter import Parameter
 
 
 class GroupOfParameters:
