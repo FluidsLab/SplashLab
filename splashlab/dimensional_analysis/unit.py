@@ -1,7 +1,7 @@
 
 import warnings
 
-from util import Util
+from splashlab.dimensional_analysis.util import Util
 from splashlab.dimensional_analysis.convert import Convert
 
 

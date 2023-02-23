@@ -40,8 +40,8 @@ class Parameter:
                 new_formula |= {param: formula[param]}
         return Parameter(name=name, units=units, values=values, formula=new_formula)
     #
-    def __repr__(self) -> str:
-        return 'Parameter: ' + self.name
+    # def __repr__(self) -> str:
+    #     return 'Parameter: ' + self.name
 
     def __eq__(self, other) -> bool:
         # if self.name == other.name and (self.units != other.units or not (self.values == other.values).all()):

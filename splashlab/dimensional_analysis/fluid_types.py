@@ -1,8 +1,8 @@
 
 import numpy as np
 
-from unit import Units
-from parameter import Parameter
+from splashlab.dimensional_analysis.unit import Units
+from splashlab.dimensional_analysis.parameter import Parameter
 from splashlab.dimensional_analysis.group_of_parameter import GroupOfParameters
 
 
