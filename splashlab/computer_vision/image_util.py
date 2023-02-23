@@ -33,7 +33,7 @@ def read_mp4(video_file):
         success, frame = video.read()
         if success:
             frames.append(frame)
-    frames = np.arrays(frames)
+    frames = np.array(frames)
     return frames
 
 
