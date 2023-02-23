@@ -1,8 +1,15 @@
 from distutils.core import setup
+
+from pathlib import Path
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
+
 setup(
   name = 'splashlab',         # How you named your package folder (MyLib)
-  packages = ['splashlab', 'splashlab.dimensional_analysis'],   # Chose the same as "name"
-  version = 'v0.0.8',      # Start with a small number and increase it with every change you make
+  long_description = long_description,
+  long_description_content_type = 'text/markdown',
+  packages = ['splashlab', 'splashlab.dimensional_analysis', 'splashlab.computer_vision'],   # Chose the same as "name"
+  version = 'v0.0.9',      # Start with a small number and increase it with every change you make
   license='MIT',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'A package for fluid mechanic experimentalists',   # Give a short description about your library
   author = 'Spencer Truman',                   # Type in your name
@@ -15,6 +22,7 @@ setup(
           'pandas',
           'sympy',
           'matplotlib',
+          'opencv-python'
       ],
   classifiers=[
     'Development Status :: 3 - Alpha',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
