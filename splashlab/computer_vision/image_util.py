@@ -25,6 +25,18 @@ def read_image_folder(folder_path, file_extension='.tif', start=0, end=-1, read_
     return images
 
 
+def read_mp4(video_file):
+    video = cv2.VideoCapture(video_file)
+    success = True
+    frames = []
+    while success:
+        success, frame = video.read()
+        if success:
+            frames.append(frame)
+    frames = np.arrays(frames)
+    return frames
+
+
 def write_video(output_file, images, framerate=20, color=False, fourcc=cv2.VideoWriter_fourcc(*'mp4v')):
     video = cv2.VideoWriter(output_file, fourcc, framerate, (images.shape[2], images.shape[1]), color)
     for i in images:
@@ -170,9 +182,6 @@ def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None,
 
 
 if __name__ == "__main__":
-    images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
-    print('images loaded', images.shape)
-    selected = feature_selector(images[500:])
-    tracked_feature, returned_images = feature_tracker(images[501:700], selected, show_images=False, return_images=True)
-    print('finished tracking')
-    animate_images(returned_images, wait_key=True, BGR=False)
+    test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
+    print(len(test_frames))
+    animate_images(test_frames)
