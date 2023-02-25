@@ -11,8 +11,7 @@ def error(a, b):
     return abs(a - b) / a
 
 
-def read_image_folder(folder_path, file_extension='.tif', start=0, end=-1, read_color=False):
-    # TODO add crop region
+def read_image_folder(folder_path, file_extension='.tif', start=0, end=None, read_color=False):
     files = glob.glob(folder_path + '/*' + file_extension)
     images = []
     for i in files[start:end]:
@@ -44,18 +43,19 @@ def write_video(output_file, images, framerate=20, color=False, fourcc=cv2.Video
     video.release()
 
 
-def animate_images(images, wait_time=10, wait_key=False, BGR=True):
+def animate_images(images, wait_time=10, wait_key=False, BGR=True, close=True):
     window_name = 'image'
     for i, image in enumerate(images):
         cv2.setWindowTitle(window_name, str(i))
-        cv2.imshow(window_name, image if BGR else cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        cv2.imshow(window_name, image if BGR or image.shape[-1] != 3 else cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
 
         # Press Q on keyboard to exit
         if cv2.waitKey(wait_time) & 0xFF == 27:  # ord('q'):
             break
         if wait_key:
             cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if close:
+        cv2.destroyAllWindows()
 
 
 def find_contours(img, threshold1=100, threshold2=200):
@@ -66,7 +66,6 @@ def find_contours(img, threshold1=100, threshold2=200):
 
 def simple_contour_match(contours, target_contour):
     # TODO Try using two contours combined to improve matching accuracy
-    target_position = np.mean(target_contour[:, :, 0]), np.mean(target_contour[:, :, 1])
     err = 1000000
     for con in contours:
         shape_err = cv2.matchShapes(target_contour, con, 1, parameter=0)
@@ -80,6 +79,7 @@ def simple_contour_match(contours, target_contour):
 
 
 def generate_gif(images_location: str, output_file: str) -> None:
+    # TODO add logic so it only reads images in the folder
     img_array = []
     for filename in glob.glob(images_location):
         img = cv2.imread(filename)
@@ -103,43 +103,40 @@ def mouse_tracker(event, x, y, flags, param):
         pressX, pressY = x, y
 
 
-mouseX, mouseY, pressX, pressY = -1, -1, -1, -1
+mouseX, mouseY, pressX, pressY = -5, -5, -3, -3
 
 
-def feature_selector(images: np.ndarray, threshold1=100, threshold2=200) -> np.ndarray:
+def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200) -> np.ndarray:
     global mouseX, mouseY, pressX, pressY
-    mouseX, mouseY = -1, -1
-    pressX, pressY = -1, -1
+    mouseX, mouseY = -5, -5
+    pressX, pressY = -3, -3
 
     cv2.namedWindow('feature_selector')
     cv2.setMouseCallback('feature_selector', mouse_tracker)
     i = 0
     selected = False
     selected_contour = None
-    while i < len(images):
+    while i < len(images) and not selected:
         cv2.setWindowTitle('feature_selector', str(i))
-        img = images[i].copy()
+        img = images[i] if images.shape[-1] !=3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
         contours, _ = find_contours(img, threshold1, threshold2)
         img_contour = cv2.drawContours(image=cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
                                        color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
 
         for con in contours:
-            for point in con:
-                if (np.array((pressX, pressY)) == point[0, :]).all():
-                    selected_contour = con
-                    selected = True
-                    break
-                if (np.array((mouseX, mouseY)) == point[0, :]).all():
-                    img_contour = cv2.drawContours(image=img_contour, contours=con, contourIdx=-1, color=(255, 100, 50),
-                                                   thickness=2, lineType=cv2.LINE_AA)
-
-        if selected:
-            break
+            dist = abs(cv2.pointPolygonTest(con, (mouseX, mouseY), True))
+            if mouseX == pressX and mouseY == pressY:
+                selected_contour = con
+                selected = True
+                break
+            if dist < 2:
+                img_contour = cv2.drawContours(image=img_contour, contours=con, contourIdx=-1, color=(255, 100, 50),
+                                               thickness=2, lineType=cv2.LINE_AA)
 
         cv2.imshow('feature_selector', cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
         k = cv2.waitKey(1) & 0xFF
         if k == ord('q'):
-            i += 500
+            i += step
         elif k == 27:  # 'ESC' key
             break
 
@@ -148,12 +145,13 @@ def feature_selector(images: np.ndarray, threshold1=100, threshold2=200) -> np.n
 
 
 def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None, show_images=True, return_images=False,
-                    threshold1=100, threshold2=200) -> np.ndarray:
+                    threshold1=100, threshold2=200):
     tracked_feature = []
     recorded_images = []
     for j, image in enumerate(images):
-
-        img = image.copy() if show_images or return_images else image
+        if image.shape[-1] == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        img = image if show_images or return_images else image
         contours, _ = find_contours(img, threshold1, threshold2)
         selected_contour = simple_contour_match(contours, selected_contour)
 
@@ -182,6 +180,14 @@ def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None,
 
 
 if __name__ == "__main__":
-    test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
-    print(len(test_frames))
-    animate_images(test_frames)
+    test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
+    # test_images = read_image_folder("C:\\Users\\truma\\Documents\Code\\ai_ws\data\\28679_1_93")
+    print('Images loaded')
+    stuff = feature_selector(test_images)
+    contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
+    animate_images(colored)
+    # test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
+    # print(test_frames.shape)
+    # contour = feature_selector(test_frames)
+    # contours, colored = feature_tracker(test_frames, contour, show_images=False, return_images=True)
+    # animate_images(colored)
