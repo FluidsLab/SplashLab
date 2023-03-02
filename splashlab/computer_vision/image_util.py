@@ -111,6 +111,9 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
     mouseX, mouseY = -5, -5
     pressX, pressY = -3, -3
 
+    if len(images) == 1:
+        images = np.array([images])
+
     cv2.namedWindow('feature_selector')
     cv2.setMouseCallback('feature_selector', mouse_tracker)
     i = 0
@@ -125,7 +128,6 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
 
         for con in contours:
             dist = abs(cv2.pointPolygonTest(con, (mouseX, mouseY), True))
-            print(len(con))
             if dist < 2:
                 img_contour = cv2.drawContours(image=img_contour, contours=con, contourIdx=-1, color=(255, 100, 50),
                                                thickness=2, lineType=cv2.LINE_AA)
@@ -198,3 +200,4 @@ if __name__ == "__main__":
     img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg")
     img = np.array([img])
     contour = feature_selector(img)
+    print(len(contour))
