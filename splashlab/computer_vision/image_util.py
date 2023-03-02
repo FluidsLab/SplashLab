@@ -68,12 +68,12 @@ def simple_contour_match(contours, target_contour):
     # TODO Try using two contours combined to improve matching accuracy
     err = 1000000
     for con in contours:
-        shape_err = cv2.matchShapes(target_contour, con, 1, parameter=0)
+        # shape_err = cv2.matchShapes(target_contour, con, 1, parameter=0)
         length_error = error(con.shape[0], target_contour.shape[0])
         position_error = error(np.mean(target_contour[:, :, 0]), np.mean(con[:, :, 0])) + error(
             np.mean(target_contour[:, :, 1]), np.mean(con[:, :, 1]))
-        if shape_err + length_error + position_error < err:
-            err = shape_err + length_error + position_error
+        if length_error + position_error < err:
+            err = length_error + position_error
             matching_contour = con
     return matching_contour
 
@@ -125,13 +125,14 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
 
         for con in contours:
             dist = abs(cv2.pointPolygonTest(con, (mouseX, mouseY), True))
-            if mouseX == pressX and mouseY == pressY:
-                selected_contour = con
-                selected = True
-                break
+            print(len(con))
             if dist < 2:
                 img_contour = cv2.drawContours(image=img_contour, contours=con, contourIdx=-1, color=(255, 100, 50),
                                                thickness=2, lineType=cv2.LINE_AA)
+            if mouseX == pressX and mouseY == pressY and dist < 2:
+                selected_contour = con
+                selected = True
+                break
 
         cv2.imshow('feature_selector', cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
         k = cv2.waitKey(1) & 0xFF
@@ -180,14 +181,20 @@ def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None,
 
 
 if __name__ == "__main__":
-    test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
-    # test_images = read_image_folder("C:\\Users\\truma\\Documents\Code\\ai_ws\data\\28679_1_93")
-    print('Images loaded')
-    stuff = feature_selector(test_images)
-    contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
-    animate_images(colored)
-    # test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
-    # print(test_frames.shape)
-    # contour = feature_selector(test_frames)
-    # contours, colored = feature_tracker(test_frames, contour, show_images=False, return_images=True)
+    # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
+    # # test_images = read_image_folder("C:\\Users\\truma\\Documents\Code\\ai_ws\data\\28679_1_93")
+    # print('Images loaded')
+    #
+    # stuff = feature_selector(test_images)
+    # contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
     # animate_images(colored)
+
+    # test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
+    # bart_frames = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')[500:1000]
+    # contour = feature_selector(bart_frames)
+    # track_feature, colored = feature_tracker(bart_frames, contour)
+    # animate_images(colored)
+
+    img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg")
+    img = np.array([img])
+    contour = feature_selector(img)
