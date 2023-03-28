@@ -11,10 +11,10 @@ def error(a, b):
     return abs(a - b) / a
 
 
-def read_image_folder(folder_path, file_extension='.tif', start=0, end=None, read_color=False):
+def read_image_folder(folder_path, file_extension='.tif', start=0, end=None, step=1, read_color=False):
     files = glob.glob(folder_path + '/*' + file_extension)
     images = []
-    for i in files[start:end]:
+    for i in files[start:end:step]:
         if read_color:
             img = cv2.imread(i)
         else:
@@ -24,7 +24,7 @@ def read_image_folder(folder_path, file_extension='.tif', start=0, end=None, rea
     return images
 
 
-def read_mp4(video_file):
+def read_video(video_file):
     video = cv2.VideoCapture(video_file)
     success = True
     frames = []
@@ -58,8 +58,8 @@ def animate_images(images, wait_time=10, wait_key=False, BGR=True, close=True):
         cv2.destroyAllWindows()
 
 
-def find_contours(img, threshold1=100, threshold2=200):
-    img_blur = cv2.GaussianBlur(img, (3, 3), sigmaX=0, sigmaY=0)
+def find_contours(img, threshold1=100, threshold2=200, blur=3):
+    img_blur = cv2.GaussianBlur(img, (blur, blur), sigmaX=0, sigmaY=0)
     edges = cv2.Canny(image=img_blur, threshold1=threshold1, threshold2=threshold2)
     return cv2.findContours(image=edges, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
 
@@ -111,8 +111,9 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
     mouseX, mouseY = -5, -5
     pressX, pressY = -3, -3
 
+    print('length', len(images))
     if len(images) == 1:
-        images = np.array([images])
+        images = np.array(images)
 
     cv2.namedWindow('feature_selector')
     cv2.setMouseCallback('feature_selector', mouse_tracker)
@@ -147,7 +148,7 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
     return selected_contour
 
 
-def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None, show_images=True, return_images=False,
+def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=lambda x: x, show_images=True, return_images=False,
                     threshold1=100, threshold2=200):
     tracked_feature = []
     recorded_images = []
@@ -179,17 +180,20 @@ def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=None,
 
     if show_images:
         cv2.destroyAllWindows()
-    return tracked_feature, recorded_images if return_images else tracked_feature
+    return (tracked_feature, recorded_images) if return_images else tracked_feature
 
 
 if __name__ == "__main__":
     # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
-    # # test_images = read_image_folder("C:\\Users\\truma\\Documents\Code\\ai_ws\data\\28679_1_93")
-    # print('Images loaded')
+    # test_images = read_image_folder(r"C:\Users\truma\Documents\Code\ai_ws\data\28679_1_93")
+    # test_images = read_image_folder(r'C:\Users\truma\OneDrive\Desktop\Test Folder', file_extension='.jpeg')
+    images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
+    print(images.shape)
+    print('Images loaded')
     #
     # stuff = feature_selector(test_images)
     # contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
-    # animate_images(colored)
+    # animate_images(test_images)
 
     # test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
     # bart_frames = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')[500:1000]
@@ -197,7 +201,6 @@ if __name__ == "__main__":
     # track_feature, colored = feature_tracker(bart_frames, contour)
     # animate_images(colored)
 
-    img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg")
-    img = np.array([img])
-    contour = feature_selector(img)
-    print(len(contour))
+    # img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg", 0)
+    # contour = feature_selector([img])
+    # print(len(contour))

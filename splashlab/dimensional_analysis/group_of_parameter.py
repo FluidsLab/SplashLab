@@ -23,11 +23,13 @@ class GroupOfParameters:
     def __sub__(self, other):
         new = []
         for parameter_name in self:
-            if self[parameter_name] not in other:
+            if parameter_name not in other:
                 new.append(self[parameter_name])
         return GroupOfParameters(new)
 
     def __add__(self, other):
+        if isinstance(other, Parameter):
+            other = GroupOfParameters([other])
         new = [self[parameter] for parameter in self]
         for parameter in other:
             new.append(other[parameter])
