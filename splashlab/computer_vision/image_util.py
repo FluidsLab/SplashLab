@@ -2,6 +2,8 @@ import numpy as np
 import glob
 import cv2
 
+from dataclasses import dataclass
+
 
 def error(a, b):
     if a == 0:
@@ -95,7 +97,7 @@ def generate_gif(images_location: str, output_file: str) -> None:
     print('complete')
 
 
-def mouse_tracker(event, x, y, flags, param):
+def track_mouse(event, x, y, flags, param):
     global mouseX, mouseY, pressX, pressY
     if event == cv2.EVENT_MOUSEMOVE:
         mouseX, mouseY = x, y
@@ -106,17 +108,16 @@ def mouse_tracker(event, x, y, flags, param):
 mouseX, mouseY, pressX, pressY = -5, -5, -3, -3
 
 
-def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200) -> np.ndarray:
+def select_contour(images: np.ndarray, step=1, threshold1=100, threshold2=200) -> np.ndarray:
     global mouseX, mouseY, pressX, pressY
     mouseX, mouseY = -5, -5
     pressX, pressY = -3, -3
 
-    print('length', len(images))
-    if len(images) == 1:
+    if len(images) == 1 or isinstance(images, list):
         images = np.array(images)
 
     cv2.namedWindow('feature_selector')
-    cv2.setMouseCallback('feature_selector', mouse_tracker)
+    cv2.setMouseCallback('feature_selector', track_mouse)
     i = 0
     selected = False
     selected_contour = None
@@ -148,7 +149,7 @@ def feature_selector(images: np.ndarray, step=1, threshold1=100, threshold2=200)
     return selected_contour
 
 
-def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=lambda x: x, show_images=True, return_images=False,
+def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda x: x, show_images=True, return_images=False,
                     threshold1=100, threshold2=200):
     tracked_feature = []
     recorded_images = []
@@ -183,12 +184,157 @@ def feature_tracker(images: np.ndarray, selected_contour: np.ndarray, func=lambd
     return (tracked_feature, recorded_images) if return_images else tracked_feature
 
 
+@dataclass
+class Pixel:
+    x: int
+    y: int
+
+
+@dataclass
+class Mouse:
+    down: Pixel = Pixel(0, 0)
+    move: Pixel = Pixel(-10, -10)
+    up: Pixel = Pixel(0, 0)
+    index = 0
+    pressed: bool = False
+    shift: bool = False
+    alt: bool = False
+    shift: bool = False
+    ctrl: bool = False
+    flag_dict = {0: (False, False, False), 8: (True, False, False), 16: (False, True, False), 24: (True, True, False),
+                 32: (False, False, True), 40: (True, False, True), 48: (False, True, True), 56: (True, True, True)}
+
+    def tracker(self, event, x, y, flags, param):
+        if flags in self.flag_dict:
+            self.ctrl, self.shift, self.ctrl = self.flag_dict[flags]
+
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            self.up = Pixel(x, y)
+
+        elif event == cv2.EVENT_MOUSEMOVE:
+            self.move = Pixel(x, y)
+
+        elif event == cv2.EVENT_LBUTTONDOWN:
+            self.down = Pixel(x, y)
+            self.pressed = True
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.up = Pixel(x, y)
+            self.pressed = False
+
+        elif event == cv2.EVENT_MOUSEWHEEL:
+            if np.sign(flags) > 0:
+                self.index += 1
+            elif np.sign(flags) < 0:
+                self.index -= 1
+
+
+def measure_images(images: iter, image_names: iter = None, measure_type: str = '', show_help: bool = False,
+                   exit_on_mouse_release: bool = True):
+    operations = {'p': 'Pointer', 'c': 'Circle', 'e': 'Ellipse', 'd': 'Distance', 'l': 'Line', 'r': 'Rectangle'}
+    operation = measure_type if measure_type else 'p'
+    mouse = Mouse()
+    shift = False
+
+    window_name = 'measure'
+    cv2.namedWindow(window_name)
+    cv2.setMouseCallback(window_name, mouse.tracker)
+    while True:
+        measurement = {}
+        mouse.index = max(0, mouse.index)
+        mouse.index = min(mouse.index, len(images) - 1)
+        frame_name = (image_names[mouse.index][-1] if isinstance(image_names[mouse.index], list) else image_names[
+            mouse.index]) if image_names is not None else mouse.index
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        fresh_img = cv2.cvtColor(images[mouse.index], cv2.COLOR_GRAY2RGB)
+        if show_help:
+            fresh_img = cv2.putText(fresh_img, 'Pointer: p, Distance: d, Circle: c, Rectangle: r, Ellipse: e', (10, 30),
+                                    font, .8, (200, 100, 0), 1, cv2.LINE_AA)
+        x = max(0, min(mouse.move.x, fresh_img.shape[1] - 1)) if mouse.pressed else max(0, min(mouse.up.x,
+                                                                                               fresh_img.shape[1] - 1))
+        y = max(0, min(mouse.move.y, fresh_img.shape[0] - 1)) if mouse.pressed else max(0, min(mouse.up.y,
+                                                                                               fresh_img.shape[0] - 1))
+        shift = mouse.shift if mouse.pressed else shift
+        fresh_img[:, max(0, min(mouse.move.x, fresh_img.shape[1] - 1))] += 55
+        fresh_img[max(0, min(mouse.move.y, fresh_img.shape[0] - 1)), :] += 55
+
+        if mouse.down.x > 0 and mouse.down.y > 0 and y > 0 and y > 0:
+            if operation == 'd':
+                cv2.line(fresh_img, (mouse.down.x, mouse.down.y), (x, y), (200, 100, 0), 2)
+                measurement['distance'] = np.sqrt((mouse.down.x - x) ** 2 + (mouse.down.y - y) ** 2)
+                cv2.setWindowTitle(window_name, (
+                    f'Image: {frame_name} {operations[operation]} = {measurement["distance"]:.2f} {"pixels"}'))
+
+            elif operation == 'l':
+                measurement['start'] = (mouse.down.x, mouse.down.y)
+                measurement['end'] = (x, y)
+                cv2.line(fresh_img, measurement['start'], measurement['end'], (200, 100, 0), 2)
+                cv2.setWindowTitle(window_name, (
+                    f'Image: {frame_name}, {operations[operation]}, Start = {measurement["start"]}, End = {measurement["end"]}'))
+
+            elif operation == 'r':
+                measurement['top_left'] = (min(mouse.down.x, x), min(mouse.down.y, y))
+                measurement['bottom_right'] = (max(mouse.down.x, x), max(mouse.down.y, y))
+                cv2.rectangle(fresh_img, measurement['top_left'], measurement['bottom_right'], (200, 100, 0), 2)
+                cv2.setWindowTitle(window_name, (
+                    f'Image: {frame_name} {operations[operation]}, Top Left: {measurement["top_left"]}, Bottom Right: {measurement["bottom_right"]}'))
+
+            elif operation == 'c':
+                measurement['center'] = mouse.down.x, mouse.down.y
+                measurement['radius'] = int(np.sqrt((mouse.down.x - x) ** 2 + (mouse.down.y - y) ** 2))
+
+                cv2.circle(fresh_img, measurement['center'], measurement['radius'], (200, 100, 0), 2)
+                cv2.setWindowTitle(window_name, (
+                    f'Image: {frame_name} {operations[operation]}, Center = {measurement["center"]}, Radius = {measurement["radius"]}'))
+
+
+            elif operation == 'e':
+                if shift:
+                    measurement['center'] = mouse.down.x, mouse.down.y
+                    measurement['axes'] = (abs(mouse.down.x - x), abs(mouse.down.y - y))
+                else:
+                    measurement['center'] = int(np.mean([mouse.down.x, x])), int(np.mean([mouse.down.y, y]))
+                    measurement['axes'] = (abs(mouse.down.x - x) // 2, abs(mouse.down.y - y) // 2)
+
+                cv2.ellipse(fresh_img, measurement['center'], measurement['axes'], 0, 0, 360, (200, 100, 0), 2)
+                cv2.setWindowTitle(window_name, (
+                    f'Image: {frame_name} {operations[operation]}, Center = {measurement["center"]}, Axes = {measurement["axes"]}'))
+
+        if operation == 'p' or not (mouse.down.x or mouse.down.y):
+            cv2.setWindowTitle(window_name, (
+                f'Image: {frame_name}, Operation: {operations[operation]}, Pixel = {(x, y)}, Pixel Values = {fresh_img[y, x, :]}'))
+
+        cv2.imshow(window_name, fresh_img)
+
+        k = cv2.waitKey(1) & 0xFF
+        if k == 27:
+            if not exit_on_mouse_release:
+                break
+            elif mouse.down.x > 0 or mouse.down.y > 0:
+                mouse.down = Pixel(0, 0)
+            else:
+                break
+
+        elif not measure_type and chr(k) in operations:
+            operation = chr(k)
+
+        if (mouse.down.x <= 0 or mouse.down.y <= 0) and (mouse.up.x > 0 or mouse.up.y > 0):
+            mouse.up = Pixel(-10, -10)
+
+        elif exit_on_mouse_release and (mouse.down.x > 0 or mouse.down.y > 0) and (mouse.up.x > 0 or mouse.up.y > 0):
+            break
+
+    cv2.destroyAllWindows()
+    return measurement
+
+
 if __name__ == "__main__":
     # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
     # test_images = read_image_folder(r"C:\Users\truma\Documents\Code\ai_ws\data\28679_1_93")
     # test_images = read_image_folder(r'C:\Users\truma\OneDrive\Desktop\Test Folder', file_extension='.jpeg')
-    images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
-    print(images.shape)
+    test_images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
+    print(test_images.shape)
     print('Images loaded')
     #
     # stuff = feature_selector(test_images)

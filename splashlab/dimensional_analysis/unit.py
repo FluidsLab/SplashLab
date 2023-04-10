@@ -16,7 +16,6 @@ class Unit:
     def __repr__(self) -> str:
         text = ''
         for key in self.dimensions:
-            # print(key, ': ', self.dimensions[key])
             if self.dimensions[key] != 0:
                 text += f'{key}^{self.dimensions[key]}*' if self.dimensions[key] != 1 else f'{key}*'
         return text.strip('*') if self.value != 1 else 'Nondimensional'
@@ -229,3 +228,5 @@ if __name__ == "__main__":
 
     text_unit = 'mm'
     print('eqn', unit_parser(text_unit, SIUnits))
+
+    print(unit_parser('m^2/m*s*psi'))
