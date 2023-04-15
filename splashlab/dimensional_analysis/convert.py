@@ -3,10 +3,6 @@ import numpy as np
 
 class Convert:
     def __init__(self):
-        # common constants
-        self.g = 9.81  # on earth
-        self.sg = 1000  # specific gravity
-
         # Length
         self.m = 1
         self.km = 1000 * self.m
@@ -27,6 +23,8 @@ class Convert:
 
         # Mass
         self.kg = 1
+        self.kilogram = self.kg
+        self.g = 1 / 1000 * self.kg
         self.gram = 1 / 1000 * self.kg
         self.lbm = 1 / 2.2046 * self.kg
         self.slug = 14.594 * self.kg
@@ -34,6 +32,7 @@ class Convert:
         # Angle
         self.rad = 1
         self.deg = 3.141592653589793238462643383279/180 * self.rad
+        self.rev = 360 * self.deg
 
         # Force
         self.N = self.kg * self.m / self.s ** 2
@@ -41,6 +40,7 @@ class Convert:
 
         # Energy
         self.J = self.N * self.m
+        self.kJ = 1000 * self.J
 
         # Pressure
         self.Pa = 1
@@ -75,10 +75,10 @@ class ConvertTemperature:
     def __init__(self, temp):
         
         # Temperature
-        self.K = 1
+        self.K = 1 * temp
         self.C = (temp + 273.15) / temp
         self.F = ((temp - 32) * 5 / 9 + 273.15) / temp
-        self.Rankine = 0.556
+        self.Rankine = 0.556 * temp
 
 
 

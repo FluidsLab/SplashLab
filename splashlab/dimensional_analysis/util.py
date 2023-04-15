@@ -1,6 +1,6 @@
 
 import numpy as np
-
+import pandas as pd
 from fractions import Fraction
 
 
@@ -30,3 +30,28 @@ class Util:
         for param in parameters[1:]:
             parameter *= param
         return parameter.units.value == 1
+
+    @staticmethod
+    def get_markdown(df, formula):
+        top = ''
+        bottom = ''
+        for i, parameter in enumerate(df):
+            if formula[i] == 1:
+                top += f'({parameter})'
+            elif formula[i] > 0:
+                top += f'({parameter})^' + '{' + f'{formula[i]:.2f}' + '}'
+            elif formula[i] == -1:
+                bottom += f'({parameter})'
+            elif -formula[i] > 0:
+                bottom += f'({parameter})^' + '{' + f'{-formula[i]:.2f}' + '}'
+        return r'$\frac{!top!}{!bottom!}$'.replace('!top!', top if top else '1').replace('!bottom!', bottom) if bottom else r'$!top!$'.replace('!top!', top)
+
+
+if __name__ == "__main__":
+    df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
+    if 'Label' in df.columns:
+        labels = pd.DataFrame(df['Label'])
+        B = df.drop(['Label'], axis=1)
+    a_formula = np.array([0,-1,0.5,-1,0,0,-1])
+
+    print(Util.get_markdown(B, a_formula))
