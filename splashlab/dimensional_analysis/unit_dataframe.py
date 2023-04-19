@@ -159,6 +159,17 @@ class UnitDataframe:
         return new_units
 
     @staticmethod
+    def get_AB(csv_file):
+        units = UnitDataframe.create_dimensional_matrix(pd.read_csv(csv_file, nrows=1).drop(['Label'], axis=1))
+        A = units.loc[['s', 'm', 'kg', 'K']]
+
+        B = pd.read_csv(csv_file, skiprows=[1])
+        if 'Label' in B.columns:
+            B = B.drop(['Label'], axis=1)
+        B = B * units.loc['conversion_factor'].astype('float')
+        return A, B
+
+    @staticmethod
     def get_markdown(dimensional_matrix, formula):
         top = ''
         bottom = ''
@@ -173,7 +184,6 @@ class UnitDataframe:
             elif -exponent > 0:
                 bottom += f'({base_units[i]}^' + '{' + f'{-exponent:.2f}' + '})'
         return r'$\frac{!top!}{!bottom!}$'.replace('!top!', top if top else '1').replace('!bottom!', bottom) if bottom else r'$!top!$'.replace('!top!', top)
-
 
 if __name__ == "__main__":
     df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
