@@ -4,6 +4,7 @@ import pandas as pd
 
 from splashlab.dimensional_analysis.convert import Convert
 
+
 class UnitDataframe:
     nondimensional = np.array([0.0, 0, 0, 0])
     nondimensional.setflags(write=False)
@@ -25,8 +26,7 @@ class UnitDataframe:
     c = Convert()
 
     unit_dict = {
-        '': [1, nondimensional],
-        '1': [1, nondimensional],
+        'n/a': [1, nondimensional],
         'acceleration': [1, L - T * 2],
         'angle': [1, theta],
         'angular_acceleration': [1, theta - T * 2],
@@ -123,9 +123,12 @@ class UnitDataframe:
             quotient_factors = 1
             for i, b in enumerate(a.split('/')):
                 b = b.split('^')
-                exp = int(b[1] if len(b) > 1 else 1)
-                scale_factor, partial_unit = UnitDataframe.unit_dict[b[0]][0] ** exp, UnitDataframe.unit_dict[b[0]][
-                    1] * exp  # TODO figure out how to handle fractions
+                if UnitDataframe.unit_dict.get(b[0]) is not None:
+                    exp = int(b[1] if len(b) > 1 else 1)
+                    scale_factor, partial_unit = UnitDataframe.unit_dict[b[0]][0] ** exp, UnitDataframe.unit_dict[b[0]][
+                        1] * exp  # TODO figure out how to handle fractions
+                else:
+                    return None, b[1]
 
                 quotient_factors /= scale_factor if i != 0 else scale_factor ** -1
                 quotient -= partial_unit if i != 0 else partial_unit * -1
@@ -160,7 +163,12 @@ class UnitDataframe:
 
     @staticmethod
     def get_AB(csv_file):
-        units = UnitDataframe.create_dimensional_matrix(pd.read_csv(csv_file, nrows=1).drop(['Label'], axis=1))
+        df = pd.read_csv(csv_file, nrows=1)
+        if 'Label' in df.columns:
+            units = UnitDataframe.create_dimensional_matrix(df.drop(['Label'], axis=1))
+        else:
+            units = UnitDataframe.create_dimensional_matrix(df)
+
         A = units.loc[['s', 'm', 'kg', 'K']]
 
         B = pd.read_csv(csv_file, skiprows=[1])
@@ -178,20 +186,28 @@ class UnitDataframe:
             if exponent == 1:
                 top += f'({base_units[i]})'
             elif exponent > 0:
-                top += f'({base_units[i]}^' + '{' + f'{exponent:.2f}' + '})'
+                exp = int(exponent) if exponent % 1 == 0 else f'{exponent:.2f}'
+                top += f'({base_units[i]}^' + '{' + f'{exp}' + '})'
             elif exponent == -1:
                 bottom += f'({base_units[i]})'
             elif -exponent > 0:
-                bottom += f'({base_units[i]}^' + '{' + f'{-exponent:.2f}' + '})'
+                exp = int(-exponent) if exponent % 1 == 0 else f'{-exponent:.2f}'
+                bottom += f'({base_units[i]}^' + '{' + f'{exp}' + '})'
         return r'$\frac{!top!}{!bottom!}$'.replace('!top!', top if top else '1').replace('!bottom!', bottom) if bottom else r'$!top!$'.replace('!top!', top)
 
+
 if __name__ == "__main__":
-    df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
-    if 'Label' in df.columns:
-        labels = pd.DataFrame(df['Label'])
-        B = df.drop(['Label'], axis=1)
-    units = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", nrows=1).drop(['Label'], axis=1)
-    new_units = UnitDataframe.create_dimensional_matrix(units)
-    a_formula = np.array([0,-1,0.5,-1,0,0,-1])
-    print(new_units)
-    print(UnitDataframe.get_markdown(new_units, a_formula))
+    # df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
+    # if 'Label' in df.columns:
+    #     labels = pd.DataFrame(df['Label'])
+    #     B = df.drop(['Label'], axis=1)
+    # units = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", nrows=1).drop(['Label'], axis=1)
+    # new_units = UnitDataframe.create_dimensional_matrix(units)
+    # a_formula = np.array([0,-1,0.5,-1,0,0,-1])
+    # print(new_units)
+    # print(UnitDataframe.get_markdown(new_units, a_formula))
+
+    # A, B = UnitDataframe.get_AB(r"C:\Users\truma\Downloads\testdata3.csv")
+    # print(A, B)
+
+    print(UnitDataframe.unit_parser('mm'))

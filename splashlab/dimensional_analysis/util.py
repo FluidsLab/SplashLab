@@ -39,11 +39,13 @@ class Util:
             if formula[i] == 1:
                 top += f'({parameter})'
             elif formula[i] > 0:
-                top += f'({parameter})^' + '{' + f'{formula[i]:.2f}' + '}'
+                exp = int(formula[i]) if formula[i] % 1 == 0 else f'{formula[i]:.2f}'
+                top += f'({parameter})^' + '{' + f'{exp}' + '}'
             elif formula[i] == -1:
                 bottom += f'({parameter})'
             elif -formula[i] > 0:
-                bottom += f'({parameter})^' + '{' + f'{-formula[i]:.2f}' + '}'
+                exp = int(-formula[i]) if formula[i] % 1 == 0 else f'{-formula[i]:.2f}'
+                bottom += f'({parameter})^' + '{' + f'{exp}' + '}'
         return r'$\frac{!top!}{!bottom!}$'.replace('!top!', top if top else '1').replace('!bottom!', bottom) if bottom else r'$!top!$'.replace('!top!', top)
 
 
@@ -52,6 +54,6 @@ if __name__ == "__main__":
     if 'Label' in df.columns:
         labels = pd.DataFrame(df['Label'])
         B = df.drop(['Label'], axis=1)
-    a_formula = np.array([0,-1,0.5,-1,0,0,-1])
+    a_formula = np.array([0,-1,0.5,-2,0,0,-1])
 
     print(Util.get_markdown(B, a_formula))
