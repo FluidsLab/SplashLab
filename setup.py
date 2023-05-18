@@ -7,7 +7,7 @@ setup(
   long_description = long_description,
   long_description_content_type = 'text/markdown',
   packages = ['splashlab', 'splashlab.dimensional_analysis', 'splashlab.computer_vision'],   # Chose the same as "name"
-  version = 'v0.0.24',      # Start with a small number and increase it with every change you make
+  version = 'v0.0.25',      # Start with a small number and increase it with every change you make
   license='MIT',        # Chose a license from here: https://help.github.com/articles/licensing-a-repository
   description = 'A package for fluid mechanic experimentalists',   # Give a short description about your library
   author = 'Spencer Truman',                   # Type in your name

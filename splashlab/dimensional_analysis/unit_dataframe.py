@@ -26,7 +26,9 @@ class UnitDataframe:
     c = Convert()
 
     unit_dict = {
-        'n/a': [1, nondimensional],
+        '': [1, nondimensional],
+        'unitless': [1, nondimensional],
+        'nondimensional': [1, nondimensional],
         'acceleration': [1, L - T * 2],
         'angle': [1, theta],
         'angular_acceleration': [1, theta - T * 2],
@@ -128,7 +130,7 @@ class UnitDataframe:
                     scale_factor, partial_unit = UnitDataframe.unit_dict[b[0]][0] ** exp, UnitDataframe.unit_dict[b[0]][
                         1] * exp  # TODO figure out how to handle fractions
                 else:
-                    return None, b[1]
+                    return None, b[0]
 
                 quotient_factors /= scale_factor if i != 0 else scale_factor ** -1
                 quotient -= partial_unit if i != 0 else partial_unit * -1
@@ -210,4 +212,4 @@ if __name__ == "__main__":
     # A, B = UnitDataframe.get_AB(r"C:\Users\truma\Downloads\testdata3.csv")
     # print(A, B)
 
-    print(UnitDataframe.unit_parser('mm'))
+    print(UnitDataframe.unit_parser(''))
