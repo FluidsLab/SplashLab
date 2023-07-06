@@ -1,4 +1,7 @@
 
+import os
+import json
+import glob
 import numpy as np
 import pandas as pd
 from fractions import Fraction
@@ -48,6 +51,17 @@ class Util:
                 bottom += f'({parameter})^' + '{' + f'{exp}' + '}'
         return r'$\frac{!top!}{!bottom!}$'.replace('!top!', top if top else '1').replace('!bottom!', bottom) if bottom else r'$!top!$'.replace('!top!', top)
 
+    @staticmethod
+    def read_config(base_directory):
+        data = []
+        for directory in glob.glob(base_directory + r'/data/*'):
+            if os.path.isdir(directory):
+                relative_dir = directory.split('\\')[-1]
+                data.append(relative_dir.split('_'))
+        with open(base_directory + '/data/config.json', 'r') as readFile:
+            config_file = json.load(readFile)
+        columns = config_file.keys()
+        return pd.DataFrame(data, columns=columns)
 
 if __name__ == "__main__":
     df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
@@ -57,3 +71,6 @@ if __name__ == "__main__":
     a_formula = np.array([0,-1,0.5,-2,0,0,-1])
 
     print(Util.get_markdown(B, a_formula))
+    base_directory_test = r"D:\bubble_image_analysis"
+    inputs = Util.read_config(base_directory_test)
+    print(inputs)

@@ -110,7 +110,9 @@ class UnitDataframe:
 
         # Pressure
         'Pa': [getattr(c, 'Pa'), M - L - T * 2],
-        'psi': [getattr(c, 'psi'), M - L - T * 2]
+        'psi': [getattr(c, 'psi'), M - L - T * 2],
+
+        '1': [1, nondimensional],
     }
 
     # TODO Only works with SI Units. Should it work with others? (Maybe no, I don't like others)

@@ -123,7 +123,7 @@ def select_contour(images: np.ndarray, step=1, threshold1=100, threshold2=200) -
     selected_contour = None
     while i < len(images) and not selected:
         cv2.setWindowTitle('feature_selector', str(i))
-        img = images[i] if images.shape[-1] !=3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
+        img = images[i] if images.shape[-1] != 3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
         contours, _ = find_contours(img, threshold1, threshold2)
         img_contour = cv2.drawContours(image=cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
                                        color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
