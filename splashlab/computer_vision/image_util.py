@@ -199,14 +199,13 @@ class Mouse:
     pressed: bool = False
     shift: bool = False
     alt: bool = False
-    shift: bool = False
     ctrl: bool = False
     flag_dict = {0: (False, False, False), 8: (True, False, False), 16: (False, True, False), 24: (True, True, False),
                  32: (False, False, True), 40: (True, False, True), 48: (False, True, True), 56: (True, True, True)}
 
     def tracker(self, event, x, y, flags, param):
         if flags in self.flag_dict:
-            self.ctrl, self.shift, self.ctrl = self.flag_dict[flags]
+            self.ctrl, self.shift, self.alt = self.flag_dict[flags]
 
         if event == cv2.EVENT_LBUTTONDBLCLK:
             self.up = Pixel(x, y)
@@ -329,6 +328,86 @@ def measure_images(images: iter, image_names: iter = None, measure_type: str = '
     return measurement
 
 
+def zoom_img(img, zoom):
+    """
+    Simple image zooming without boundary checking.
+
+    img: numpy.ndarray of shape (h,w,:)
+    zoom: float
+    """
+
+    return cv2.resize(img, (0, 0), fx=zoom, fy=zoom)[
+        int(round((img.shape[0] * (zoom - 1)))) // 2: int(round((img.shape[0] * (zoom + 1)))) // 2,
+        int(round((img.shape[1] * (zoom - 1)))) // 2: int(round((img.shape[1] * (zoom + 1)))) // 2,
+        ]
+
+
+def define_three_point_circle(p1: Pixel, p2: Pixel, p3: Pixel):
+    """
+    Returns the center and radius of the circle passing the given 3 points.
+    In case the 3 points form a line, returns (None, infinity).
+    """
+    temp = p2.x * p2.x + p2.y * p2.y
+    bc = (p1.x * p1.x + p1.y * p1.y - temp) / 2
+    cd = (temp - p3.x * p3.x - p3.y * p3.y) / 2
+    det = (p1.x - p2.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p2.y)
+
+    if abs(det) < 1.0e-6:
+        return None, np.inf
+
+    # Center of circle
+    cx = (bc * (p2.y - p3.y) - cd * (p1.y - p2.y)) / det
+    cy = ((p1.x - p2.x) * cd - (p2.x - p3.x) * bc) / det
+
+    radius = np.sqrt((cx - p1.x) ** 2 + (cy - p1.y) ** 2)
+    return (int(cx), int(cy)), int(radius)
+
+
+def select_three_point_circle(image, magnification=5, **kwargs):
+    mouse = Mouse()
+    mouse.index = 5 * magnification
+    point1, point2, point3 = None, None, None
+    cv2.namedWindow(kwargs.get('window_name', 'three_point_circle'))
+    cv2.setMouseCallback(kwargs.get('window_name', 'three_point_circle'), mouse.tracker)
+    while True:
+        x, y = mouse.move.x, mouse.move.y
+        mouse.index = max(0, mouse.index)
+        zoom = mouse.index / 5 + 1
+        h, w = image.shape
+        img = image.copy()
+
+        if not (None in [point1, point2, point3]):
+            cv2.circle(img, *define_three_point_circle(point1, point2, point3), 255, 2)
+        # if y % 2 == 0 and x % 2 == 0:
+        ySlice = slice(max(0, y - 50), min(h, y + 50))
+        xSlice = slice(max(0, x - 50), min(w, x + 50))
+        img[ySlice, xSlice] = zoom_img(img[ySlice, xSlice], zoom)
+
+        cv2.imshow(kwargs.get('window_name', 'three_point_circle'), img)
+
+        if mouse.pressed:
+            if point1 is None:
+                point1 = mouse.down
+            elif point2 is None:
+                point2 = mouse.down
+            elif point3 is None:
+                point3 = mouse.down
+            mouse.pressed = False
+        k = cv2.waitKey(1) & 0xFF
+
+        if k in [27, 13, 32]:  # ESC is 27, ENTER is 13, SPACE is 32
+            break
+        elif chr(k) == 'z':
+            if point3 is not None:
+                point3 = None
+            elif point2 is not None:
+                point2 = None
+            elif point1 is not None:
+                point1 = None
+    cv2.destroyAllWindows()
+    return point1, point2, point3
+
+
 if __name__ == "__main__":
     # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
     # test_images = read_image_folder(r"C:\Users\truma\Documents\Code\ai_ws\data\28679_1_93")
@@ -336,6 +415,8 @@ if __name__ == "__main__":
     test_images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
     print(test_images.shape)
     print('Images loaded')
+    circle = select_three_point_circle(test_images[0])
+    print(define_three_point_circle(*circle))
     #
     # stuff = feature_selector(test_images)
     # contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
