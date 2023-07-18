@@ -1,8 +1,55 @@
+import pandas as pd
 import numpy as np
 import glob
 import cv2
 
+from typing import Any, Callable
 from dataclasses import dataclass
+from splashlab.dimensional_analysis.util import Util
+
+
+@dataclass
+class Experiment:
+    inputs: list([str])
+    measurements: list([str])
+    df: pd.DataFrame
+    base_directory: str
+
+    @classmethod
+    def read_config(cls, base_directory: str) -> 'Experiment':
+        return cls(*Util.read_config(base_directory), base_directory)
+
+    def apply(self, measurement_functions: dict[str, Callable[[Any], Any]],
+              preprocess: Callable[[str], Any] | None = None, query: str = '', save_results=True) -> None:
+        keys = [key for key in measurement_functions]
+        for i, row in (self.query(query).iterrows() if query else self.df.iterrows()):
+            data = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
+            if preprocess is not None:
+                data = preprocess(data)
+            measurements = []
+            for key, func in measurement_functions.items():
+                measurements.append(func(data, **row[self.inputs]))
+                if None in measurements:
+                    break
+            if None in measurements:
+                break
+            else:
+                self.df.loc[i, keys] = measurements
+        if save_results:
+            self.save()
+
+    def query(self, *args, **kwargs) -> pd.DataFrame:
+        return self.df.query(*args, **kwargs)
+
+    def set_base_directory(self, base_directory) -> None:
+        self.base_directory = base_directory
+
+    def save(self) -> None:
+        try:
+            self.df.to_csv(self.base_directory + '/measurements.csv', index=False)
+            print('Data saved to file')
+        except PermissionError:
+            print("ERROR: data was not saved to file, please close file and save again")
 
 
 def error(a, b):
@@ -412,11 +459,11 @@ if __name__ == "__main__":
     # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
     # test_images = read_image_folder(r"C:\Users\truma\Documents\Code\ai_ws\data\28679_1_93")
     # test_images = read_image_folder(r'C:\Users\truma\OneDrive\Desktop\Test Folder', file_extension='.jpeg')
-    test_images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
-    print(test_images.shape)
-    print('Images loaded')
-    circle = select_three_point_circle(test_images[0])
-    print(define_three_point_circle(*circle))
+    # test_images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
+    # print(test_images.shape)
+    # print('Images loaded')
+    # circle = select_three_point_circle(test_images[0])
+    # print(define_three_point_circle(*circle))
     #
     # stuff = feature_selector(test_images)
     # contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
@@ -431,3 +478,24 @@ if __name__ == "__main__":
     # img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg", 0)
     # contour = feature_selector([img])
     # print(len(contour))
+
+    def find_radius(image, **kwargs):
+        points = select_three_point_circle(image, window_name='Find Radius - ' + ", ".join(
+            f'{key}: {value}' for key, value in kwargs.items()))
+        if not (None in points):
+            (x, y), radius = define_three_point_circle(*points)
+            return radius
+        return None
+
+
+    def read_first_image(directory):
+        files = glob.glob(directory + '/*.tif')
+        return cv2.imread(files[0], 0)
+
+    e = Experiment.read_config(r"D:\bubble_image_analysis")
+    measurement_functions = {
+        'radius1': find_radius,
+        'radius2': find_radius,
+        'radius3': find_radius
+    }
+    e.apply(measurement_functions, read_first_image, 'radius1 != radius1')

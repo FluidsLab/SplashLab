@@ -58,19 +58,29 @@ class Util:
             if os.path.isdir(directory):
                 relative_dir = directory.split('\\')[-1]
                 data.append(relative_dir.split('_'))
-        with open(base_directory + '/data/config.json', 'r') as readFile:
-            config_file = json.load(readFile)
-        columns = config_file.keys()
-        return pd.DataFrame(data, columns=columns)
+        with open(base_directory + '/config.json', 'r') as readFile:
+            config = json.load(readFile)
+        inputs = list(config['inputs'].keys())
+        measurements = config['measurements']
+        if os.path.isfile(base_directory + '/measurements.csv'):
+            print('Loaded from file')
+            df = pd.read_csv(base_directory + '/measurements.csv')
+            df.loc[:, inputs] = df[inputs].fillna('')
+        else:
+            print('No measements.csv file present')
+            df = pd.DataFrame(columns=inputs + measurements)
+            df[inputs] = data
+        return inputs, measurements, df
+
 
 if __name__ == "__main__":
-    df = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
-    if 'Label' in df.columns:
-        labels = pd.DataFrame(df['Label'])
-        B = df.drop(['Label'], axis=1)
-    a_formula = np.array([0,-1,0.5,-2,0,0,-1])
+    dataframe = pd.read_csv(r"C:\Users\truma\Downloads\SeedsWithSpeciesandMass.csv", skiprows=[1])
+    if 'Label' in dataframe.columns:
+        labels = pd.DataFrame(dataframe['Label'])
+        B = dataframe.drop(['Label'], axis=1)
+    a_formula = np.array([0, -1, 0.5, -2, 0, 0, -1])
 
     print(Util.get_markdown(B, a_formula))
     base_directory_test = r"D:\bubble_image_analysis"
-    inputs = Util.read_config(base_directory_test)
-    print(inputs)
+    inputs1 = Util.read_config(base_directory_test)
+    print(inputs1)
