@@ -3,8 +3,8 @@ import numpy as np
 import glob
 import cv2
 
-from typing import Any, Callable
-from dataclasses import dataclass
+from typing import Any, Callable, Dict
+from dataclasses import dataclass, field
 from splashlab.dimensional_analysis.util import Util
 
 
@@ -19,8 +19,13 @@ class Experiment:
     def read_config(cls, base_directory: str) -> 'Experiment':
         return cls(*Util.read_config(base_directory), base_directory)
 
-    def apply(self, measurement_functions: dict[str, Callable[[Any], Any]],
-              preprocess: Callable[[str], Any] | None = None, query: str = '', save_results=True) -> None:
+    def apply(
+            self,
+            measurement_functions: dict[str, Callable[[Any], Any]],
+            preprocess: Callable[[str], Any] | None = None,
+            query: str = '',
+            save_results=True
+    ) -> None:
         keys = [key for key in measurement_functions]
         for i, row in (self.query(query).iterrows() if query else self.df.iterrows()):
             data = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
@@ -237,22 +242,37 @@ class Pixel:
     y: int
 
 
+flag_dict = {
+        0: (False, False, False),
+        8: (True, False, False),
+        16: (False, True, False),
+        24: (True, True, False),
+        32: (False, False, True),
+        40: (True, False, True),
+        48: (False, True, True),
+        56: (True, True, True)
+    }
+
+
 @dataclass
 class Mouse:
-    down: Pixel = Pixel(0, 0)
-    move: Pixel = Pixel(-10, -10)
-    up: Pixel = Pixel(0, 0)
+    down: Pixel = None
+    move: Pixel = None
+    up: Pixel = None
     index = 0
     pressed: bool = False
     shift: bool = False
     alt: bool = False
     ctrl: bool = False
-    flag_dict = {0: (False, False, False), 8: (True, False, False), 16: (False, True, False), 24: (True, True, False),
-                 32: (False, False, True), 40: (True, False, True), 48: (False, True, True), 56: (True, True, True)}
+
+    def __post__init__(self):
+        self.down = Pixel(0, 0)
+        self.move = Pixel(-10, -10)
+        self.up = Pixel(0, 0)
 
     def tracker(self, event, x, y, flags, param):
-        if flags in self.flag_dict:
-            self.ctrl, self.shift, self.alt = self.flag_dict[flags]
+        if flags in flag_dict:
+            self.ctrl, self.shift, self.alt = flag_dict[flags]
 
         if event == cv2.EVENT_LBUTTONDBLCLK:
             self.up = Pixel(x, y)
@@ -492,10 +512,10 @@ if __name__ == "__main__":
         files = glob.glob(directory + '/*.tif')
         return cv2.imread(files[0], 0)
 
-    e = Experiment.read_config(r"D:\bubble_image_analysis")
-    measurement_functions = {
-        'radius1': find_radius,
-        'radius2': find_radius,
-        'radius3': find_radius
-    }
-    e.apply(measurement_functions, read_first_image, 'radius1 != radius1')
+    # e = Experiment.read_config(r"D:\bubble_image_analysis")
+    # measurement_functions = {
+    #     'radius1': find_radius,
+    #     'radius2': find_radius,
+    #     'radius3': find_radius
+    # }
+    # e.apply(measurement_functions, read_first_image, 'radius1 != radius1')
