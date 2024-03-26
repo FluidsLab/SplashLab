@@ -210,22 +210,30 @@ def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda 
     return (tracked_feature, recorded_images) if return_images else tracked_feature
 
 
+def contour_extreme_points(cnt):
+    leftmost = tuple(cnt[cnt[:,:,0].argmin()][0])
+    rightmost = tuple(cnt[cnt[:,:,0].argmax()][0])
+    topmost = tuple(cnt[cnt[:,:,1].argmin()][0])
+    bottommost = tuple(cnt[cnt[:,:,1].argmax()][0])
+    return leftmost, rightmost, topmost, bottommost
+
+
 def track_stable_point(cnts):
     leftmost = []
     rightmost = []
     topmost = []
     bottommost = []
-    locations = ['leftmost', 'rightmost', 'topmost', 'bottommost']
+    locations = ['leftmost','rightmost','topmost','bottommost']
     for c in cnts:
-        leftmost.append(tuple(c[c[:, :, 0].argmin()][0]))
-        rightmost.append(tuple(c[c[:, :, 0].argmax()][0]))
-        topmost.append(tuple(c[c[:, :, 1].argmin()][0]))
-        bottommost.append(tuple(c[c[:, :, 1].argmax()][0]))
-    ma = np.array([leftmost, rightmost, topmost, bottommost])[:, :, 0].max(-1)
-    mi = np.array([leftmost, rightmost, topmost, bottommost])[:, :, 0].min(-1)
+        l, r, t, b = contour_extreme_points(c)
+        leftmost.append(l)
+        rightmost.append(r)
+        topmost.append(t)
+        bottommost.append(b)
+    ma = np.array([leftmost, rightmost, topmost, bottommost])[:,:,0].max(-1)
+    mi = np.array([leftmost, rightmost, topmost, bottommost])[:,:,0].min(-1)
     index = (ma-mi).argmin()
     return locations[index], np.array([leftmost, rightmost, topmost, bottommost])[index]
-
 
 @dataclass
 class Pixel:
