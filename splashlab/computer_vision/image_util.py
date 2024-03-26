@@ -8,55 +8,6 @@ from dataclasses import dataclass, field
 from splashlab.dimensional_analysis.util import Util
 
 
-@dataclass
-class Experiment:
-    inputs: list([str])
-    measurements: list([str])
-    df: pd.DataFrame
-    base_directory: str
-
-    @classmethod
-    def read_config(cls, base_directory: str) -> 'Experiment':
-        return cls(*Util.read_config(base_directory), base_directory)
-
-    def apply(
-            self,
-            measurement_functions: dict[str, Callable[[Any], Any]],
-            preprocess: Callable[[str], Any] | None = None,
-            query: str = '',
-            save_results=True
-    ) -> None:
-        keys = [key for key in measurement_functions]
-        for i, row in (self.query(query).iterrows() if query else self.df.iterrows()):
-            data = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
-            if preprocess is not None:
-                data = preprocess(data)
-            measurements = []
-            for key, func in measurement_functions.items():
-                measurements.append(func(data, **row[self.inputs]))
-                if None in measurements:
-                    break
-            if None in measurements:
-                break
-            else:
-                self.df.loc[i, keys] = measurements
-        if save_results:
-            self.save()
-
-    def query(self, *args, **kwargs) -> pd.DataFrame:
-        return self.df.query(*args, **kwargs)
-
-    def set_base_directory(self, base_directory) -> None:
-        self.base_directory = base_directory
-
-    def save(self) -> None:
-        try:
-            self.df.to_csv(self.base_directory + '/measurements.csv', index=False)
-            print('Data saved to file')
-        except PermissionError:
-            print("ERROR: data was not saved to file, please close file and save again")
-
-
 def error(a, b):
     if a == 0:
         if b == 0:
@@ -107,7 +58,9 @@ def animate_images(images, wait_time=10, wait_key=False, BGR=True, close=True):
         if cv2.waitKey(wait_time) & 0xFF == 27:  # ord('q'):
             break
         if wait_key:
-            cv2.waitKey(0)
+            k = cv2.waitKey(0)
+            if k == 27:
+                break
     if close:
         cv2.destroyAllWindows()
 
@@ -116,6 +69,21 @@ def find_contours(img, threshold1=100, threshold2=200, blur=3):
     img_blur = cv2.GaussianBlur(img, (blur, blur), sigmaX=0, sigmaY=0)
     edges = cv2.Canny(image=img_blur, threshold1=threshold1, threshold2=threshold2)
     return cv2.findContours(image=edges, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+
+
+def iou_contour_match(contours, target_contour):
+    best_iou = 0
+    matching_contour = None
+    x1, y1, w1, h1 = cv2.boundingRect(target_contour)
+    for cnt in contours:
+        x2, y2, w2, h2 = cv2.boundingRect(np.array(cnt))
+        intersection_area = max(0, min(x1+w1, x2+w2) - max(x1, x2)) * max(0, min(y1+h1, y2+h2) - max(y1, y2))
+        union_area = w1 * h1 + w2 * h2 - intersection_area
+        iou = intersection_area / float(max(union_area, 1e-6))
+        if iou > best_iou:
+            best_iou = iou
+            matching_contour = cnt
+    return matching_contour
 
 
 def simple_contour_match(contours, target_contour):
@@ -160,45 +128,51 @@ def track_mouse(event, x, y, flags, param):
 mouseX, mouseY, pressX, pressY = -5, -5, -3, -3
 
 
-def select_contour(images: np.ndarray, step=1, threshold1=100, threshold2=200) -> np.ndarray:
-    global mouseX, mouseY, pressX, pressY
-    mouseX, mouseY = -5, -5
-    pressX, pressY = -3, -3
-
+def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) -> np.ndarray:
+    mouse = Mouse()
     if len(images) == 1 or isinstance(images, list):
         images = np.array(images)
 
-    cv2.namedWindow('feature_selector')
-    cv2.setMouseCallback('feature_selector', track_mouse)
-    i = 0
+    window_name = 'Select Contour'
+    cv2.namedWindow(window_name)
+    cv2.setMouseCallback(window_name, mouse.tracker)
+
     selected = False
     selected_contour = None
-    while i < len(images) and not selected:
-        cv2.setWindowTitle('feature_selector', str(i))
-        img = images[i] if images.shape[-1] != 3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
+    while not selected:
+        mouse.index = max(0, mouse.index)
+        mouse.index = min(mouse.index, len(images) - 1)
+        cv2.setWindowTitle(window_name, str(mouse.index))
+        img = images[mouse.index]# if images.shape[-1] != 3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
         contours, _ = find_contours(img, threshold1, threshold2)
-        img_contour = cv2.drawContours(image=cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
+        img_contour = cv2.drawContours(image=img.copy() if images.shape[-1] == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
                                        color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
 
         for con in contours:
-            dist = abs(cv2.pointPolygonTest(con, (mouseX, mouseY), True))
+            dist = abs(cv2.pointPolygonTest(con, (mouse.move.x, mouse.move.y), True))
             if dist < 2:
                 img_contour = cv2.drawContours(image=img_contour, contours=con, contourIdx=-1, color=(255, 100, 50),
                                                thickness=2, lineType=cv2.LINE_AA)
-            if mouseX == pressX and mouseY == pressY and dist < 2:
+            if mouse.pressed and dist < 2:
                 selected_contour = con
                 selected = True
                 break
 
-        cv2.imshow('feature_selector', cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
+        cv2.imshow(window_name, cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
         k = cv2.waitKey(1) & 0xFF
-        if k == ord('q'):
-            i += step
+        if k == ord('x'):
+            threshold2 += step
+        if k == ord('z'):
+            threshold2 -= step
+        if k == ord('s'):
+            threshold1 += step
+        if k == ord('a'):
+            threshold1 -= step
         elif k == 27:  # 'ESC' key
             break
 
     cv2.destroyAllWindows()
-    return selected_contour
+    return selected_contour, mouse.index, (threshold1, threshold2)
 
 
 def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda x: x, show_images=True, return_images=False,
@@ -210,7 +184,7 @@ def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda 
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         img = image if show_images or return_images else image
         contours, _ = find_contours(img, threshold1, threshold2)
-        selected_contour = simple_contour_match(contours, selected_contour)
+        selected_contour = iou_contour_match(contours, selected_contour)
 
         if func is not None:
             tracked_feature.append(func(selected_contour))
@@ -236,6 +210,23 @@ def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda 
     return (tracked_feature, recorded_images) if return_images else tracked_feature
 
 
+def track_stable_point(cnts):
+    leftmost = []
+    rightmost = []
+    topmost = []
+    bottommost = []
+    locations = ['leftmost', 'rightmost', 'topmost', 'bottommost']
+    for c in cnts:
+        leftmost.append(tuple(c[c[:, :, 0].argmin()][0]))
+        rightmost.append(tuple(c[c[:, :, 0].argmax()][0]))
+        topmost.append(tuple(c[c[:, :, 1].argmin()][0]))
+        bottommost.append(tuple(c[c[:, :, 1].argmax()][0]))
+    ma = np.array([leftmost, rightmost, topmost, bottommost])[:, :, 0].max(-1)
+    mi = np.array([leftmost, rightmost, topmost, bottommost])[:, :, 0].min(-1)
+    index = (ma-mi).argmin()
+    return locations[index], np.array([leftmost, rightmost, topmost, bottommost])[index]
+
+
 @dataclass
 class Pixel:
     x: int
@@ -256,19 +247,15 @@ flag_dict = {
 
 @dataclass
 class Mouse:
-    down: Pixel = None
-    move: Pixel = None
-    up: Pixel = None
-    index = 0
-    pressed: bool = False
-    shift: bool = False
-    alt: bool = False
-    ctrl: bool = False
-
-    def __post__init__(self):
+    def __init__(self):
         self.down = Pixel(0, 0)
         self.move = Pixel(-10, -10)
         self.up = Pixel(0, 0)
+        self.index = 0
+        self.pressed: bool = False
+        self.shift: bool = False
+        self.alt: bool = False
+        self.ctrl: bool = False
 
     def tracker(self, event, x, y, flags, param):
         if flags in flag_dict:
@@ -353,7 +340,6 @@ def measure_images(images: iter, image_names: iter = None, measure_type: str = '
                 cv2.circle(fresh_img, measurement['center'], measurement['radius'], (200, 100, 0), 2)
                 cv2.setWindowTitle(window_name, (
                     f'Image: {frame_name} {operations[operation]}, Center = {measurement["center"]}, Radius = {measurement["radius"]}'))
-
 
             elif operation == 'e':
                 if shift:
@@ -476,46 +462,8 @@ def select_three_point_circle(image, magnification=5, **kwargs):
 
 
 if __name__ == "__main__":
-    # test_images = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')
-    # test_images = read_image_folder(r"C:\Users\truma\Documents\Code\ai_ws\data\28679_1_93")
-    # test_images = read_image_folder(r'C:\Users\truma\OneDrive\Desktop\Test Folder', file_extension='.jpeg')
-    # test_images = read_image_folder(r"C:\Users\truma\Documents\MATLAB\28679_1_89", step=1000)
-    # print(test_images.shape)
-    # print('Images loaded')
-    # circle = select_three_point_circle(test_images[0])
-    # print(define_three_point_circle(*circle))
-    #
-    # stuff = feature_selector(test_images)
-    # contours, colored = feature_tracker(test_images, stuff, show_images=False, return_images=True)
-    # animate_images(test_images)
-
-    # test_frames = read_mp4('C:/Users/truma/Downloads/samara_seed.avi')
-    # bart_frames = np.load('C:/Users/truma/Documents/Code/ComputerVision_ws/data/bird_impact.npy')[500:1000]
-    # contour = feature_selector(bart_frames)
-    # track_feature, colored = feature_tracker(bart_frames, contour)
-    # animate_images(colored)
-
-    # img = cv2.imread("C:/Users/truma/Downloads/curvature.jpeg", 0)
-    # contour = feature_selector([img])
-    # print(len(contour))
-
-    def find_radius(image, **kwargs):
-        points = select_three_point_circle(image, window_name='Find Radius - ' + ", ".join(
-            f'{key}: {value}' for key, value in kwargs.items()))
-        if not (None in points):
-            (x, y), radius = define_three_point_circle(*points)
-            return radius
-        return None
-
-
-    def read_first_image(directory):
-        files = glob.glob(directory + '/*.tif')
-        return cv2.imread(files[0], 0)
-
-    # e = Experiment.read_config(r"D:\bubble_image_analysis")
-    # measurement_functions = {
-    #     'radius1': find_radius,
-    #     'radius2': find_radius,
-    #     'radius3': find_radius
-    # }
-    # e.apply(measurement_functions, read_first_image, 'radius1 != radius1')
+    impact_frame = 113
+    images = read_image_folder(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001', read_color=True, start=impact_frame-5, end=impact_frame)
+    cnt, frame_num, (threshold1, threshold2) = select_contour(images)
+    _, imgs = track_contour(images, cnt, show_images=False, return_images=True, threshold1=threshold1, threshold2=threshold2)
+    animate_images(imgs, wait_key=True)

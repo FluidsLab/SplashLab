@@ -5,4 +5,4 @@ from splashlab.dimensional_analysis.group_of_parameter import *
 from splashlab.dimensional_analysis.parameter import *
 from splashlab.dimensional_analysis.unit import *
 from splashlab.dimensional_analysis.util import *
-from splashlab.computer_vision.image_util import Experiment
+from splashlab.data_management.experiment import Experiment
