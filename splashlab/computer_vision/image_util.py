@@ -130,7 +130,10 @@ mouseX, mouseY, pressX, pressY = -5, -5, -3, -3
 
 def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) -> np.ndarray:
     mouse = Mouse()
-    if len(images) == 1 or isinstance(images, list):
+    if isinstance(images[0], str):
+        files = images
+        images = [None] * len(files)
+    elif len(images) == 1 or isinstance(images, list):
         images = np.array(images)
 
     window_name = 'Select Contour'
@@ -143,9 +146,13 @@ def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) 
         mouse.index = max(0, mouse.index)
         mouse.index = min(mouse.index, len(images) - 1)
         cv2.setWindowTitle(window_name, str(mouse.index))
+        if images[mouse.index] is not None:
+            pass
+        else:
+            images[mouse.index] = cv2.imread(files[mouse.index])
         img = images[mouse.index]# if images.shape[-1] != 3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
         contours, _ = find_contours(img, threshold1, threshold2)
-        img_contour = cv2.drawContours(image=img.copy() if images.shape[-1] == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
+        img_contour = cv2.drawContours(image=img.copy() if img.shape[-1] == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
                                        color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
 
         for con in contours:
@@ -168,6 +175,10 @@ def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) 
             threshold1 += step
         if k == ord('a'):
             threshold1 -= step
+        if k == ord('m'):
+            mouse.index += step
+        if k == ord('n'):
+            mouse.index -= step
         elif k == 27:  # 'ESC' key
             break
 
@@ -470,8 +481,16 @@ def select_three_point_circle(image, magnification=5, **kwargs):
 
 
 if __name__ == "__main__":
-    impact_frame = 113
-    images = read_image_folder(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001', read_color=True, start=impact_frame-5, end=impact_frame)
-    cnt, frame_num, (threshold1, threshold2) = select_contour(images)
-    _, imgs = track_contour(images, cnt, show_images=False, return_images=True, threshold1=threshold1, threshold2=threshold2)
-    animate_images(imgs, wait_key=True)
+    # impact_frame = 113
+    # images = read_image_folder(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001', read_color=True, start=impact_frame-5, end=impact_frame)
+    # cnt, frame_num, (threshold1, threshold2) = select_contour(images)
+    # _, imgs = track_contour(images, cnt, show_images=False, return_images=True, threshold1=threshold1, threshold2=threshold2)
+    # animate_images(imgs, wait_key=True)
+
+
+    import glob
+    files = glob.glob(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001\*.tif')
+    print(select_contour(files))
+
+
+

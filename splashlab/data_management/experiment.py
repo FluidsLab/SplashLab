@@ -30,7 +30,7 @@ class Experiment:
             for key, func in measurement_functions.items():
                 measurement = func(data, **row)
                 if measurement is not None:
-                    self.df.loc[i, key.split(',')] = measurement
+                    self.df.loc[i, key.replace(', ', '').split(',')] = measurement
                 else:
                     break
             if measurement is not None:
@@ -66,9 +66,21 @@ def read_config(base_directory):
     measurements = config['measurements']
 
     if os.path.isfile(base_directory + '/measurements.csv'):
+        new_df = pd.DataFrame(columns=inputs + measurements)
+        new_df[inputs] = data
+        try:
+            for col in new_df:
+                new_df[col] = pd.to_numeric(new_df[col])
+        except ValueError:
+            pass
+
         print('Loaded from file')
-        df = pd.read_csv(base_directory + '/measurements.csv')
-        df.loc[:, inputs] = df[inputs].fillna('')
+        saved_df = pd.read_csv(base_directory + '/measurements.csv')
+        saved_df.loc[:, inputs] = saved_df[inputs].fillna('')
+        merged_df = pd.concat([saved_df, new_df])
+        df = merged_df.drop_duplicates(subset=inputs, ignore_index=True)
+
+        print(f'{len(df) - len(saved_df)} new data folders detected.')
     else:
         print('No measurements.csv file present')
         df = pd.DataFrame(columns=inputs + measurements)
@@ -87,6 +99,7 @@ def read_config(base_directory):
 #     def read_config(cls, base_directory: str) -> 'Experiment':
 #         return cls(*Util.read_config(base_directory), base_directory)
 #
+
 #     def apply(
 #             self,
 #             measurement_functions: dict[str, Callable[[Any], Any]],
@@ -126,5 +139,8 @@ def read_config(base_directory):
 
 
 if __name__ == "__main__":
-    e = Experiment.read_config(r"C:\Users\truma\Desktop\test_experiment")
+    e = Experiment.read_config(r"E:\ALAYESH_2023_2DSPLASH")
+    # e.save()
     print(e)
+    print(e.df.columns)
+
