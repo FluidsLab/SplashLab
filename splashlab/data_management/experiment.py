@@ -21,14 +21,18 @@ class Experiment:
         return cls(*read_config(base_directory), base_directory)
 
     def apply(self, measurement_functions: dict[str, Callable[[Any], Any]],
-              preprocess: Callable[[str], Any] | None = None, query: str = '', save_results=True) -> None:
-        # keys = [key for key in measurement_functions]
-        for i, row in (self.query(query).iterrows() if query else self.df.iterrows()):
-            data = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
+              preprocess: Callable[[str], Any] | None = None, query: str = '', random_sample: int | None = None, update_df=True, save_results=True) -> None:
+        df = self.df.query(query) if query else self.df
+        if random_sample is not None:
+            df = df.sample(n=random_sample)
+        for i, row in df.iterrows():
+            data_folder = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
             if preprocess is not None:
-                data = preprocess(data)
+                data_folder = preprocess(data_folder)
             for key, func in measurement_functions.items():
-                measurement = func(data, **row)
+                measurement = func(data_folder, **row)
+                if not update_df:
+                    return measurement
                 if measurement is not None:
                     self.df.loc[i, key.replace(', ', '').split(',')] = measurement
                 else:
@@ -37,11 +41,14 @@ class Experiment:
                 pass
             else:
                 break
-        if save_results:
+        if update_df and save_results:
             self.save()
 
     def query(self, *args, **kwargs) -> pd.DataFrame:
         return self.df.query(*args, **kwargs)
+
+    def sample(self, *args, **kwargs) -> pd.DataFrame:
+        return self.df.sample(*args, **kwargs)
 
     def set_base_directory(self, base_directory) -> None:
         self.base_directory = base_directory
@@ -87,60 +94,11 @@ def read_config(base_directory):
         df[inputs] = data
     return inputs, measurements, df
 
-#
-# @dataclass
-# class Experiment:
-#     inputs: list([str])
-#     measurements: list([str])
-#     df: pd.DataFrame
-#     base_directory: str
-#
-#     @classmethod
-#     def read_config(cls, base_directory: str) -> 'Experiment':
-#         return cls(*Util.read_config(base_directory), base_directory)
-#
-
-#     def apply(
-#             self,
-#             measurement_functions: dict[str, Callable[[Any], Any]],
-#             preprocess: Callable[[str], Any] | None = None,
-#             query: str = '',
-#             save_results=True
-#     ) -> None:
-#         keys = [key for key in measurement_functions]
-#         for i, row in (self.query(query).iterrows() if query else self.df.iterrows()):
-#             data = self.base_directory + '/data/' + '_'.join(str(j) for j in row[self.inputs].values)
-#             if preprocess is not None:
-#                 data = preprocess(data)
-#             measurements = []
-#             for key, func in measurement_functions.items():
-#                 measurements.append(func(data, **row[self.inputs]))
-#                 if None in measurements:
-#                     break
-#             if None in measurements:
-#                 break
-#             else:
-#                 self.df.loc[i, keys] = measurements
-#         if save_results:
-#             self.save()
-#
-#     def query(self, *args, **kwargs) -> pd.DataFrame:
-#         return self.df.query(*args, **kwargs)
-#
-#     def set_base_directory(self, base_directory) -> None:
-#         self.base_directory = base_directory
-#
-#     def save(self) -> None:
-#         try:
-#             self.df.to_csv(self.base_directory + '/measurements.csv', index=False)
-#             print('Data saved to file')
-#         except PermissionError:
-#             print("ERROR: data was not saved to file, please close file and save again")
-
 
 if __name__ == "__main__":
-    e = Experiment.read_config(r"E:\ALAYESH_2023_2DSPLASH")
+    directory = r"E:\ALAYESH_2023_2DSPLASH"
+    e = Experiment.read_config(directory)
     # e.save()
-    print(e)
+    print(e.apply())
     print(e.df.columns)
 

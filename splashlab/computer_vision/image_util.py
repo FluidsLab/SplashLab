@@ -1,11 +1,15 @@
-import pandas as pd
-import numpy as np
-import glob
-import cv2
 
-from typing import Any, Callable, Dict
-from dataclasses import dataclass, field
-from splashlab.dimensional_analysis.util import Util
+import numpy as np
+import cv2
+import os
+
+from dataclasses import dataclass
+from pathlib import Path
+from glob import glob
+
+
+class ImageIter:
+    pass
 
 
 def error(a, b):
@@ -17,7 +21,7 @@ def error(a, b):
 
 
 def read_image_folder(folder_path, file_extension='.tif', start=0, end=None, step=1, read_color=False):
-    files = glob.glob(folder_path + '/*' + file_extension)
+    files = glob(folder_path + '/*' + file_extension)
     images = []
     for i in files[start:end:step]:
         if read_color:
@@ -103,7 +107,7 @@ def simple_contour_match(contours, target_contour):
 def generate_gif(images_location: str, output_file: str) -> None:
     # TODO add logic so it only reads images in the folder
     img_array = []
-    for filename in glob.glob(images_location):
+    for filename in glob(images_location):
         img = cv2.imread(filename)
         height, width, layers = img.shape
         size = (width, height)
@@ -128,14 +132,18 @@ def track_mouse(event, x, y, flags, param):
 mouseX, mouseY, pressX, pressY = -5, -5, -3, -3
 
 
-def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) -> np.ndarray:
-    mouse = Mouse()
-    if isinstance(images[0], str):
-        files = images
-        images = [None] * len(files)
-    elif len(images) == 1 or isinstance(images, list):
-        images = np.array(images)
+def contour_centroid(cnt, integers=False):
+    M = cv2.moments(cnt)
+    x = M['m10']/M['m00']
+    y = M['m01']/M['m00']
+    if integers:
+        x = int(x)
+        y = int(y)
+    return np.array([x, y])
 
+
+def select_contour(images: ImageIter | np.ndarray, window_title='Frame', step=10, threshold1=100, threshold2=200) -> np.ndarray:
+    mouse = Mouse()
     window_name = 'Select Contour'
     cv2.namedWindow(window_name)
     cv2.setMouseCallback(window_name, mouse.tracker)
@@ -143,17 +151,11 @@ def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) 
     selected = False
     selected_contour = None
     while not selected:
-        mouse.index = max(0, mouse.index)
-        mouse.index = min(mouse.index, len(images) - 1)
-        cv2.setWindowTitle(window_name, str(mouse.index))
-        if images[mouse.index] is not None:
-            pass
-        else:
-            images[mouse.index] = cv2.imread(files[mouse.index])
-        img = images[mouse.index]# if images.shape[-1] != 3 else cv2.cvtColor(images[i], cv2.COLOR_BGR2GRAY)
+        cv2.setWindowTitle(window_name, f'{window_title}: {mouse.index}')
+        img = images[mouse.index]
         contours, _ = find_contours(img, threshold1, threshold2)
-        img_contour = cv2.drawContours(image=img.copy() if img.shape[-1] == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours, contourIdx=-1,
-                                       color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
+        img_copy = img.copy() if img.shape[-1] == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        img_contour = cv2.drawContours(image=img_copy, contours=contours, contourIdx=-1, color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
 
         for con in contours:
             dist = abs(cv2.pointPolygonTest(con, (mouse.move.x, mouse.move.y), True))
@@ -169,15 +171,15 @@ def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) 
         k = cv2.waitKey(1) & 0xFF
         if k == ord('x'):
             threshold2 += step
-        if k == ord('z'):
+        elif k == ord('z'):
             threshold2 -= step
-        if k == ord('s'):
+        elif k == ord('s'):
             threshold1 += step
-        if k == ord('a'):
+        elif k == ord('a'):
             threshold1 -= step
-        if k == ord('m'):
+        elif k == ord('m'):
             mouse.index += step
-        if k == ord('n'):
+        elif k == ord('n'):
             mouse.index -= step
         elif k == 27:  # 'ESC' key
             break
@@ -186,29 +188,29 @@ def select_contour(images: np.ndarray, step=10, threshold1=100, threshold2=200) 
     return selected_contour, mouse.index, (threshold1, threshold2)
 
 
-def track_contour(images: np.ndarray, selected_contour: np.ndarray, func=lambda x: x, show_images=True, return_images=False,
+def track_contour(images: ImageIter | np.ndarray, selected_contour: np.ndarray, window_title='Frame:', transform=None, show_images=True, return_images=False,
                     threshold1=100, threshold2=200):
     tracked_feature = []
     recorded_images = []
     for j, image in enumerate(images):
-        if image.shape[-1] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        img = image if show_images or return_images else image
-        contours, _ = find_contours(img, threshold1, threshold2)
+        # if image.shape[-1] == 3:
+        #     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        contours, _ = find_contours(image, threshold1, threshold2)
         selected_contour = iou_contour_match(contours, selected_contour)
 
-        if func is not None:
-            tracked_feature.append(func(selected_contour))
+        if transform is not None:
+            tracked_feature.append(transform(selected_contour))
 
         if show_images or return_images:
-            img_contour = cv2.drawContours(image=cv2.cvtColor(img, cv2.COLOR_GRAY2RGB), contours=contours,
+            image = image if image.shape[-1] == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            img_contour = cv2.drawContours(image=image, contours=contours,
                                            contourIdx=-1, color=(100, 200, 255), thickness=1, lineType=cv2.LINE_AA)
             img_contour = cv2.drawContours(image=img_contour, contours=selected_contour, contourIdx=-1,
                                            color=(255, 125, 75), thickness=3, lineType=cv2.LINE_AA)
 
             if show_images:
-                cv2.setWindowTitle('image', str(j))
-                cv2.imshow('image', cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
+                cv2.setWindowTitle('Track Contour', f'{window_title}: {j}')
+                cv2.imshow('Track Contour', cv2.cvtColor(img_contour, cv2.COLOR_RGB2BGR))
                 k = cv2.waitKey(1) & 0xFF
                 if k == 27:  # 'ESC' key
                     break
@@ -246,6 +248,7 @@ def track_stable_point(cnts):
     index = (ma-mi).argmin()
     return locations[index], np.array([leftmost, rightmost, topmost, bottommost])[index]
 
+
 @dataclass
 class Pixel:
     x: int
@@ -266,11 +269,13 @@ flag_dict = {
 
 @dataclass
 class Mouse:
-    def __init__(self):
+    def __init__(self, max_index=None, min_index=None):
         self.down = Pixel(0, 0)
         self.move = Pixel(-10, -10)
         self.up = Pixel(0, 0)
         self.index = 0
+        self.max_index = max_index
+        self.min_index = min_index
         self.pressed: bool = False
         self.shift: bool = False
         self.alt: bool = False
@@ -296,9 +301,15 @@ class Mouse:
 
         elif event == cv2.EVENT_MOUSEWHEEL:
             if np.sign(flags) > 0:
-                self.index += 1
+                if self.max_index is not None:
+                    self.index = min(self.index + 1, self.max_index)
+                else:
+                    self.index += 1
             elif np.sign(flags) < 0:
-                self.index -= 1
+                if self.min_index is not None:
+                    self.index = max(self.index - 1, self.min_index)
+                else:
+                    self.index -= 1
 
 
 def measure_images(images: iter, image_names: iter = None, measure_type: str = '', show_help: bool = False,
@@ -480,17 +491,74 @@ def select_three_point_circle(image, magnification=5, **kwargs):
     return point1, point2, point3
 
 
+class ImageIter(list):
+    def __init__(self, iterable, color: bool = True):
+        """
+        :param iterable: a directory with .tif files, a list of image files, or a list or array of numpy arrays
+        :param color: whether the images are/should be color
+        """
+        if isinstance(iterable, list):
+            "This should mean that the iterable is either a list of nd.arrays or pathlike"
+            # print('This is a list')
+        elif isinstance(iterable, np.ndarray):
+            if iterable.ndim == 2:
+                iterable = [iterable]
+            elif iterable.ndim == 3 and (iterable.shape[-1] == 3 or iterable.shape[-1] == 1):
+                iterable = [iterable]
+        elif os.path.isfile(iterable):
+            iterable = [iterable]
+        elif isinstance(iterable, str):
+            iterable = glob(iterable + '/*.tif')
+        elif isinstance(iterable, Path):
+            iterable = str(iterable)
+            iterable = glob(iterable + '/*.tif')
+        super().__init__(iterable)
+        self.color = int(color)
+        self.shape = self.shape if hasattr(self, 'shape') else (len(self), *self[0].shape) if hasattr(self[0], 'shape') else (len(self), *cv2.imread(str(self[0])).shape)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return ImageIter(list.__getitem__(self, index))
+        image = list.__getitem__(self, index)
+        if isinstance(image, str):
+            image = cv2.imread(image, self.color)
+        if isinstance(image, Path):
+            image = cv2.imread(str(image), self.color)
+        return image
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+
 if __name__ == "__main__":
-    # impact_frame = 113
-    # images = read_image_folder(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001', read_color=True, start=impact_frame-5, end=impact_frame)
-    # cnt, frame_num, (threshold1, threshold2) = select_contour(images)
-    # _, imgs = track_contour(images, cnt, show_images=False, return_images=True, threshold1=threshold1, threshold2=threshold2)
-    # animate_images(imgs, wait_key=True)
-
-
-    import glob
-    files = glob.glob(r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001\*.tif')
-    print(select_contour(files))
+    def test_image_iter(directory: str):
+        from random import randint
+        files = glob(directory + '/*.tif')
+        index = randint(0, 10)
+        image = cv2.imread(files[index])
+        bw_image = cv2.imread(files[index], 0)
+        deliver_methods = dict(
+            str_dir=directory,
+            str_file=files[index],
+            str_files=files,
+            path_dir=Path(directory),
+            path_file=Path(files[index]),
+            path_files=[Path(file) for file in files],
+            bw_image=cv2.imread(files[index], 0),
+            color_image=image,
+            bw_batch=read_image_folder(directory, end=10),
+            color_batch=read_image_folder(directory, end=10, read_color=True),
+            bw_list=list(read_image_folder(directory, end=10)),
+            color_list=list(read_image_folder(directory, end=10, read_color=True))
+        )
+        for name, method in deliver_methods.items():
+            iter_test = ImageIter(method)
+            test_image = iter_test[index] if len(iter_test) > 1 else iter_test[0]
+            if (image == test_image).all() if image.ndim == test_image.ndim else (bw_image == test_image).all():
+                print(f'{name} has passed.')
+        else:
+            print('All tests passed')
 
 
 
