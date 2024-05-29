@@ -109,7 +109,7 @@ def generate_gif(images_location: str, output_file: str) -> None:
     img_array = []
     for filename in glob(images_location):
         img = cv2.imread(filename)
-        height, width, layers = img.shape
+        height, width, *channels = img.shape
         size = (width, height)
         img_array.append(img)
 
@@ -142,8 +142,8 @@ def contour_centroid(cnt, integers=False):
     return np.array([x, y])
 
 
-def select_contour(images: ImageIter | np.ndarray, window_title='Frame', step=10, threshold1=100, threshold2=200) -> np.ndarray:
-    mouse = Mouse()
+def select_contour(images: ImageIter | np.ndarray, window_title='Frame', start=0, step=10, threshold1=100, threshold2=200) -> np.ndarray:
+    mouse = Mouse(start_index=start, min_index=0, max_index=len(images)-1)
     window_name = 'Select Contour'
     cv2.namedWindow(window_name)
     cv2.setMouseCallback(window_name, mouse.tracker)
@@ -178,9 +178,9 @@ def select_contour(images: ImageIter | np.ndarray, window_title='Frame', step=10
         elif k == ord('a'):
             threshold1 -= step
         elif k == ord('m'):
-            mouse.index += step
+            mouse.change_index(step)
         elif k == ord('n'):
-            mouse.index -= step
+            mouse.change_index(-step)
         elif k == 27:  # 'ESC' key
             break
 
@@ -200,6 +200,8 @@ def track_contour(images: ImageIter | np.ndarray, selected_contour: np.ndarray, 
 
         if transform is not None:
             tracked_feature.append(transform(selected_contour))
+        else:
+            tracked_feature.append(selected_contour)
 
         if show_images or return_images:
             image = image if image.shape[-1] == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
@@ -269,11 +271,11 @@ flag_dict = {
 
 @dataclass
 class Mouse:
-    def __init__(self, max_index=None, min_index=None):
+    def __init__(self, start_index=0, max_index=None, min_index=None):
         self.down = Pixel(0, 0)
         self.move = Pixel(-10, -10)
         self.up = Pixel(0, 0)
-        self.index = 0
+        self.index = start_index
         self.max_index = max_index
         self.min_index = min_index
         self.pressed: bool = False
@@ -311,12 +313,34 @@ class Mouse:
                 else:
                     self.index -= 1
 
+    def change_index(self, increment: int):
+        if np.sign(increment) > 0:
+            if self.max_index is not None:
+                self.index = min(self.index + increment, self.max_index)
+            else:
+                self.index += increment
+        elif np.sign(increment) < 0:
+            if self.min_index is not None:
+                self.index = max(self.index + increment, self.min_index)
+            else:
+                self.index += increment
+
+    def set_index(self, index):
+        self.index = index
+        if self.max_index is not None:
+            self.index = min(self.index, self.max_index)
+        if self.min_index is not None:
+            self.index = max(self.index, self.min_index)
+
 
 def measure_images(images: iter, image_names: iter = None, measure_type: str = '', show_help: bool = False,
-                   exit_on_mouse_release: bool = True):
+                   exit_on_mouse_release: bool = True, zoom=True):
+    #### Caution Zooming near the edges of the frame wher the zoom box is partially out of frame is untested ####
+    if not isinstance(images, ImageIter):
+        images = ImageIter(images, color=images.shape[-1] == 3)
     operations = {'p': 'Pointer', 'c': 'Circle', 'e': 'Ellipse', 'd': 'Distance', 'l': 'Line', 'r': 'Rectangle'}
     operation = measure_type if measure_type else 'p'
-    mouse = Mouse()
+    mouse = Mouse(max_index=len(images)-1)
     shift = False
 
     window_name = 'measure'
@@ -324,26 +348,35 @@ def measure_images(images: iter, image_names: iter = None, measure_type: str = '
     cv2.setMouseCallback(window_name, mouse.tracker)
     while True:
         measurement = {}
-        mouse.index = max(0, mouse.index)
-        mouse.index = min(mouse.index, len(images) - 1)
         frame_name = (image_names[mouse.index][-1] if isinstance(image_names[mouse.index], list) else image_names[
             mouse.index]) if image_names is not None else mouse.index
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        fresh_img = cv2.cvtColor(images[mouse.index], cv2.COLOR_GRAY2RGB)
+        if images.color:
+            fresh_img = images[mouse.index]
+        else:
+            fresh_img = cv2.cvtColor(images[mouse.index], cv2.COLOR_GRAY2RGB)
         if show_help:
             fresh_img = cv2.putText(fresh_img, 'Pointer: p, Distance: d, Circle: c, Rectangle: r, Ellipse: e', (10, 30),
                                     font, .8, (200, 100, 0), 1, cv2.LINE_AA)
-        x = max(0, min(mouse.move.x, fresh_img.shape[1] - 1)) if mouse.pressed else max(0, min(mouse.up.x,
-                                                                                               fresh_img.shape[1] - 1))
-        y = max(0, min(mouse.move.y, fresh_img.shape[0] - 1)) if mouse.pressed else max(0, min(mouse.up.y,
-                                                                                               fresh_img.shape[0] - 1))
+        height, width, *channels = fresh_img.shape
+        x = max(0, min(mouse.move.x, width - 1)) if mouse.pressed else max(0, min(mouse.up.x, width - 1))
+        y = max(0, min(mouse.move.y, height - 1)) if mouse.pressed else max(0, min(mouse.up.y, height - 1))
+        if zoom:
+            ySlice = slice(max(0, y - 50), min(height, y + 50))
+            xSlice = slice(max(0, x - 50), min(width, x + 50))
+            fresh_img[ySlice, xSlice] = zoom_img(fresh_img[ySlice, xSlice], 5)
         shift = mouse.shift if mouse.pressed else shift
         fresh_img[:, max(0, min(mouse.move.x, fresh_img.shape[1] - 1))] += 55
         fresh_img[max(0, min(mouse.move.y, fresh_img.shape[0] - 1)), :] += 55
 
         if mouse.down.x > 0 and mouse.down.y > 0 and y > 0 and y > 0:
-            if operation == 'd':
+            if operation == 'p':
+                measurement['index'] = np.array([x, y])
+                # measurement['pixel_value'] = fresh_img[y, x]
+                cv2.setWindowTitle(window_name, (f'Image: {frame_name}, {operations[operation]} = {measurement["index"]}, Pixel Values = {fresh_img[y, x, :]}'))
+
+            elif operation == 'd':
                 cv2.line(fresh_img, (mouse.down.x, mouse.down.y), (x, y), (200, 100, 0), 2)
                 measurement['distance'] = np.sqrt((mouse.down.x - x) ** 2 + (mouse.down.y - y) ** 2)
                 cv2.setWindowTitle(window_name, (
@@ -383,7 +416,7 @@ def measure_images(images: iter, image_names: iter = None, measure_type: str = '
                 cv2.setWindowTitle(window_name, (
                     f'Image: {frame_name} {operations[operation]}, Center = {measurement["center"]}, Axes = {measurement["axes"]}'))
 
-        if operation == 'p' or not (mouse.down.x or mouse.down.y):
+        if not (mouse.down.x or mouse.down.y):
             cv2.setWindowTitle(window_name, (
                 f'Image: {frame_name}, Operation: {operations[operation]}, Pixel = {(x, y)}, Pixel Values = {fresh_img[y, x, :]}'))
 
@@ -456,7 +489,7 @@ def select_three_point_circle(image, magnification=5, **kwargs):
         x, y = mouse.move.x, mouse.move.y
         mouse.index = max(0, mouse.index)
         zoom = mouse.index / 5 + 1
-        h, w = image.shape
+        h, w, *c = image.shape
         img = image.copy()
 
         if not (None in [point1, point2, point3]):
@@ -492,14 +525,14 @@ def select_three_point_circle(image, magnification=5, **kwargs):
 
 
 class ImageIter(list):
-    def __init__(self, iterable, color: bool = True):
+    def __init__(self, iterable, color: bool = True, extension='.tif'):
         """
         :param iterable: a directory with .tif files, a list of image files, or a list or array of numpy arrays
         :param color: whether the images are/should be color
+        :param extension: file extension of files to look for
         """
         if isinstance(iterable, list):
-            "This should mean that the iterable is either a list of nd.arrays or pathlike"
-            # print('This is a list')
+            "This should mean that the iterable is either a list of nd.arrays or pathlike strings"
         elif isinstance(iterable, np.ndarray):
             if iterable.ndim == 2:
                 iterable = [iterable]
@@ -508,10 +541,10 @@ class ImageIter(list):
         elif os.path.isfile(iterable):
             iterable = [iterable]
         elif isinstance(iterable, str):
-            iterable = glob(iterable + '/*.tif')
+            iterable = glob(iterable + f'/*{extension}')
         elif isinstance(iterable, Path):
             iterable = str(iterable)
-            iterable = glob(iterable + '/*.tif')
+            iterable = glob(iterable + f'/*{extension}')
         super().__init__(iterable)
         self.color = int(color)
         self.shape = self.shape if hasattr(self, 'shape') else (len(self), *self[0].shape) if hasattr(self[0], 'shape') else (len(self), *cv2.imread(str(self[0])).shape)
@@ -521,9 +554,9 @@ class ImageIter(list):
             return ImageIter(list.__getitem__(self, index))
         image = list.__getitem__(self, index)
         if isinstance(image, str):
-            image = cv2.imread(image, self.color)
-        if isinstance(image, Path):
-            image = cv2.imread(str(image), self.color)
+            return cv2.imread(image, self.color)
+        elif isinstance(image, Path):
+            return cv2.imread(str(image), self.color)
         return image
 
     def __iter__(self):
@@ -559,6 +592,47 @@ if __name__ == "__main__":
                 print(f'{name} has passed.')
         else:
             print('All tests passed')
+    # test_image_iter(r"E:\ALAYESH_2023_2DSPLASH\data\122_15_20000_cal002")
 
+    # test_images = ImageIter(r"E:\ALAYESH_2023_2DSPLASH\data\122_15_20000_cal002")
+    # cnt, start_frame, _ = select_contour(test_images, window_title="122_15_20000_cal002")
+    # centroid = track_contour(test_images[start_frame: start_frame+100], cnt, transform=contour_centroid)
+    # print(centroid)
 
+    from splashlab.data_management.experiment import Experiment
+    directory = r"E:\ALAYESH_2023_2DSPLASH"
+    film = Experiment.read_config(directory)
+
+    def get_velocity(directory, impact_frame, *args, **kwargs):
+        # test_images = directory#ImageIter(directory)
+        # cnt, start_frame, (t1, t2) = select_contour(test_images, window_title=str(kwargs))
+        # if cnt is not None:
+        #     cnts = track_contour(test_images[start_frame - 10: start_frame + 10], cnt, transform=lambda x: x, threshold1=t1, threshold2=t2)
+        #     centroids = np.array([contour_centroid(c) for c in cnts]).T
+        #     x, y = centroids
+        #     print(y)
+        #     return 0
+        return measure_images(directory)
+
+    q = 'trial==137'
+    print(film.apply({'test': get_velocity}, preprocess=ImageIter, query=q, update_df=False, save_results=False))
+    print(film.query(q))
+
+    # impact_frame = 113
+    # directory = r'E:\ALAYESH_2023_2DSPLASH\data\30_47_cal001'
+    # images = read_image_folder(directory, read_color=True, start=impact_frame-5, end=impact_frame)
+    # cnt, frame_num, (t1, t2) = select_contour(images)
+    # _, imgs = track_contour(images, cnt, show_images=False, return_images=True, threshold1=t1, threshold2=t2)
+    # animate_images(imgs, wait_key=True)
+
+    # files = Path(r"E:\ALAYESH_2023_2DSPLASH\data\122_15_20000_cal002")
+    # files = read_image_folder(str(files), start=10, end=60)
+    # # print(files)
+    # files = ImageIter(files)
+    # print(files.shape)
+    # print(select_contour(r"E:\ALAYESH_2023_2DSPLASH\data\122_15_20000_cal002"))
+
+    # images = ImageIter(r'E:\ALAYESH_2023_2DSPLASH\data\105_30_20000_cal002')
+    #
+    # select_contour(images)
 
